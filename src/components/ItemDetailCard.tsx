@@ -25,14 +25,18 @@ export default function ItemDetailCard({ item, onClose }: { item: Item; onClose:
           ✕
         </button>
         <div className="detail-header">
-          <img src={item.shop_image_webp ?? item.shop_image} alt={item.name} />
+          <div className={`detail-art slot-edge-${item.item_slot_type ?? 'weapon'}`}>
+            <img src={item.shop_image_webp ?? item.shop_image} alt={item.name} />
+            {item.item_tier && <span className={`tier-ribbon tier-${item.item_tier}`}>{item.item_tier}</span>}
+          </div>
           <div>
             <h3>{item.name}</h3>
             <div className="item-meta">
-              <span className={`slot-dot slot-${item.item_slot_type}`} />
               <span>{humanizeLabel(item.item_slot_type ?? '')}</span>
-              <span>· Tier {item.item_tier}</span>
-              <span>· {item.cost} souls</span>
+              <span className="item-tile-cost">
+                <span className="soul-icon" aria-hidden />
+                {item.cost}
+              </span>
             </div>
           </div>
         </div>
@@ -42,7 +46,7 @@ export default function ItemDetailCard({ item, onClose }: { item: Item; onClose:
           if (text.length === 0) return null
           return (
             <div key={i}>
-              <div className="phase-title">
+              <div className="detail-section-title">
                 <span>{humanizeLabel(s.section_type ?? '')}</span>
               </div>
               {text.map((t, j) => (
@@ -58,7 +62,7 @@ export default function ItemDetailCard({ item, onClose }: { item: Item; onClose:
 
         {props.length > 0 && (
           <div>
-            <div className="phase-title">
+            <div className="detail-section-title">
               <span>Stats</span>
             </div>
             {props.map((p, i) => {
