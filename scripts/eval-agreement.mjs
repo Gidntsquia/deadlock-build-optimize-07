@@ -52,7 +52,7 @@ function keywordAffinity(item, keywords) {
   return hits / keys.length
 }
 
-function scoreItems(archetype, weights) {
+function scoreItems(weights) {
   const statByItem = new Map(stats.map((s) => [s.item_id, s]))
   const maxMatches = Math.max(1, ...stats.map((s) => s.matches))
   const out = []
@@ -63,16 +63,11 @@ function scoreItems(archetype, weights) {
 
     const winScore = wilsonLowerBound(stat.wins, stat.wins + stat.losses)
     const popularity = Math.log(1 + stat.matches) / Math.log(1 + maxMatches)
-    const slotBonus =
-      archetype === 'gun'
-        ? item.item_slot_type === 'weapon' ? 1 : item.item_slot_type === 'vitality' ? 0.4 : 0.15
-        : item.item_slot_type === 'spirit' ? 1 : item.item_slot_type === 'vitality' ? 0.4 : 0.15
-    const keywordBonus = archetype === 'gun' ? keywordAffinity(item, WEAPON_KEYWORDS) : keywordAffinity(item, SPIRIT_KEYWORDS)
+    const keywordBonus = Math.max(keywordAffinity(item, WEAPON_KEYWORDS), keywordAffinity(item, SPIRIT_KEYWORDS))
     const vitalityBonus = keywordAffinity(item, VITALITY_KEYWORDS) * 0.3
 
     const score =
-      winScore * weights.win + popularity * weights.pop + slotBonus * weights.slot +
-      keywordBonus * weights.keyword + vitalityBonus * weights.vitality
+      winScore * weights.win + popularity * weights.pop + keywordBonus * weights.keyword + vitalityBonus * weights.vitality
 
     out.push({ item, stat, score, buyTimeRelative: stat.avg_buy_time_relative ?? 50 })
   }
@@ -151,20 +146,14 @@ function validateBuild(buildItems, coreEntries) {
 
 export function evaluate(weights, tierBudget = TIER_BUDGET) {
   const core = computeZergCoreSet()
-  const results = {}
-  for (const archetype of ['gun', 'spirit']) {
-    const scored = scoreItems(archetype, weights)
-    const picked = selectBuild(scored, tierBudget)
-    results[archetype] = validateBuild(picked, core)
-  }
-  return results
+  const scored = scoreItems(weights)
+  const picked = selectBuild(scored, tierBudget)
+  return validateBuild(picked, core)
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const weights = { win: 0.35, pop: 0.35, slot: 0.05, keyword: 0.15, vitality: 0.1 }
+  const weights = { win: 0.4, pop: 0.4, keyword: 0.15, vitality: 0.1 }
   const r = evaluate(weights, { 1: 8, 2: 8, 3: 7, 4: 5 })
   console.log('CURRENT weights:', weights)
-  for (const [archetype, res] of Object.entries(r)) {
-    console.log(archetype, JSON.stringify(res))
-  }
+  console.log(JSON.stringify(r))
 }

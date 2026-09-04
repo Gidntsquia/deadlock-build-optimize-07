@@ -64,8 +64,6 @@ function keywordAffinity(item: Item, keywords: string[]): number {
   return hits / keys.length
 }
 
-export type Archetype = 'gun' | 'spirit'
-
 interface ScoredItem {
   item: Item
   stat: ItemStat
@@ -73,11 +71,11 @@ interface ScoredItem {
   buyTimeRelative: number
 }
 
-function scoreItemsForArchetype(
-  items: Item[],
-  stats: ItemStat[],
-  archetype: Archetype,
-): ScoredItem[] {
+// A single unified build draws from whichever items are objectively
+// strongest (winning and popular) rather than being pre-split into a
+// weapon-only or spirit-only archetype, since real top-player builds mix
+// slot types freely.
+function scoreItems(items: Item[], stats: ItemStat[]): ScoredItem[] {
   const statByItem = new Map(stats.map((s) => [s.item_id, s]))
   const maxMatches = Math.max(1, ...stats.map((s) => s.matches))
   const out: ScoredItem[] = []
@@ -88,33 +86,16 @@ function scoreItemsForArchetype(
 
     const winScore = wilsonLowerBound(stat.wins, stat.wins + stat.losses)
     const popularity = Math.log(1 + stat.matches) / Math.log(1 + maxMatches)
-
-    const slotBonus =
-      archetype === 'gun'
-        ? item.item_slot_type === 'weapon'
-          ? 1
-          : item.item_slot_type === 'vitality'
-            ? 0.4
-            : 0.15
-        : item.item_slot_type === 'spirit'
-          ? 1
-          : item.item_slot_type === 'vitality'
-            ? 0.4
-            : 0.15
-
-    const keywordBonus =
-      archetype === 'gun'
-        ? keywordAffinity(item, WEAPON_KEYWORDS)
-        : keywordAffinity(item, SPIRIT_KEYWORDS)
+    const keywordBonus = Math.max(
+      keywordAffinity(item, WEAPON_KEYWORDS),
+      keywordAffinity(item, SPIRIT_KEYWORDS),
+    )
     const vitalityBonus = keywordAffinity(item, VITALITY_KEYWORDS) * 0.3
 
     // Weighting: win confidence and popularity are co-dominant (top players
-    // converge on items that are both winning and commonly built), slot fit
-    // is a light nudge rather than a hard filter (real builds mix slots more
-    // than a strict weapon/spirit split), and stat-line synergy plus a
-    // vitality credit round it out.
-    const score =
-      winScore * 0.35 + popularity * 0.35 + slotBonus * 0.05 + keywordBonus * 0.15 + vitalityBonus * 0.1
+    // converge on items that are both winning and commonly built), and
+    // stat-line synergy plus a vitality credit round it out.
+    const score = winScore * 0.4 + popularity * 0.4 + keywordBonus * 0.15 + vitalityBonus * 0.1
 
     out.push({ item, stat, score, buyTimeRelative: stat.avg_buy_time_relative ?? 50 })
   }
@@ -175,48 +156,32 @@ function buildAbilityOrder(
   })
 }
 
-export function generateBuilds(snap: Snapshots, heroId: number): Build[] {
+export function generateBuild(snap: Snapshots, heroId: number): Build | null {
   const hero = snap.heroes.find((h) => h.id === heroId)
-  if (!hero) return []
+  if (!hero) return null
   const stats = snap.itemStats[String(heroId)] ?? []
   const orderStats = snap.abilityOrderStats[String(heroId)] ?? []
 
-  const archetypes: { id: Archetype; name: string; description: string }[] = [
-    {
-      id: 'gun',
-      name: 'Gun Damage Build',
-      description:
-        'Prioritizes weapon-slot items with the strongest win-rate confidence, for hero kits that scale off sustained gunfire.',
-    },
-    {
-      id: 'spirit',
-      name: 'Spirit / Ability Build',
-      description:
-        'Prioritizes spirit-slot items with the strongest win-rate confidence, for hero kits that scale off ability power and cooldown.',
-    },
-  ]
-
   const abilityOrder = buildAbilityOrder(hero, snap.abilities, orderStats)
 
-  return archetypes.map((archetype) => {
-    const scored = scoreItemsForArchetype(snap.items, stats, archetype.id)
-    const picked = selectBuild(scored)
-    let running = 0
-    const items: BuildItem[] = picked.map((s) => {
-      running += s.item.cost ?? 0
-      return {
-        item: s.item,
-        phase: phaseFor(s.buyTimeRelative),
-        runningTotal: running,
-        score: s.score,
-      }
-    })
+  const scored = scoreItems(snap.items, stats)
+  const picked = selectBuild(scored)
+  let running = 0
+  const items: BuildItem[] = picked.map((s) => {
+    running += s.item.cost ?? 0
     return {
-      id: `${hero.id}-${archetype.id}`,
-      name: archetype.name,
-      description: archetype.description,
-      items,
-      abilityOrder,
+      item: s.item,
+      phase: phaseFor(s.buyTimeRelative),
+      runningTotal: running,
+      score: s.score,
     }
   })
+  return {
+    id: `${hero.id}-build`,
+    name: `${hero.name} Build`,
+    description:
+      'Highest-confidence buy order for this hero, ranked by win-rate and popularity across top matches.',
+    items,
+    abilityOrder,
+  }
 }

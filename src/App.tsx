@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { activeHeroes, loadSnapshots, type Snapshots } from './lib/data'
-import { generateBuilds } from './lib/generator'
+import { generateBuild } from './lib/generator'
 import { computeZergCoreSet, validateBuild, type BuildAgreement, type ZergCoreSet } from './lib/validation'
-import { computeInsight } from './lib/insights'
 import HeroPicker from './components/HeroPicker'
 import BuildView from './components/BuildView'
-import type { Build } from './types'
 
 const INFERNUS_ID = 1
 
@@ -13,9 +11,8 @@ export default function App() {
   const [snap, setSnap] = useState<Snapshots | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [heroId, setHeroId] = useState(INFERNUS_ID)
-  const [buildIdx, setBuildIdx] = useState(0)
   const [core, setCore] = useState<ZergCoreSet | null>(null)
-  const [agreements, setAgreements] = useState<Record<string, BuildAgreement>>({})
+  const [agreement, setAgreement] = useState<BuildAgreement | null>(null)
 
   useEffect(() => {
     loadSnapshots()
@@ -27,30 +24,25 @@ export default function App() {
   }, [])
 
   const heroes = useMemo(() => (snap ? activeHeroes(snap.heroes) : []), [snap])
-  const insight = useMemo(() => (snap ? computeInsight(snap.appUserMatches) : null), [snap])
 
-  const builds: Build[] = useMemo(() => {
-    if (!snap) return []
-    return generateBuilds(snap, heroId)
+  const build = useMemo(() => {
+    if (!snap) return null
+    return generateBuild(snap, heroId)
   }, [snap, heroId])
 
   useEffect(() => {
-    setBuildIdx(0)
-  }, [heroId])
-
-  useEffect(() => {
-    if (heroId !== INFERNUS_ID || !core || builds.length === 0) return
+    if (heroId !== INFERNUS_ID || !core || !build) {
+      setAgreement(null)
+      return
+    }
     let cancelled = false
-    Promise.all(builds.map((b) => validateBuild(b, core))).then((results) => {
-      if (cancelled) return
-      const map: Record<string, BuildAgreement> = {}
-      for (const r of results) map[r.buildId] = r
-      setAgreements(map)
+    validateBuild(build, core).then((result) => {
+      if (!cancelled) setAgreement(result)
     })
     return () => {
       cancelled = true
     }
-  }, [builds, core, heroId])
+  }, [build, core, heroId])
 
   if (error) {
     return (
@@ -68,8 +60,6 @@ export default function App() {
     )
   }
 
-  const activeBuild = builds[buildIdx]
-  const agreement = activeBuild ? agreements[activeBuild.id] : undefined
   const showValidation = heroId === INFERNUS_ID
 
   return (
@@ -79,26 +69,6 @@ export default function App() {
         <HeroPicker heroes={heroes} selected={heroId} onSelect={setHeroId} />
       </div>
       <main>
-        {insight && (
-          <div className="insight-card">
-            <strong>Your play pattern:</strong> {insight.note}
-          </div>
-        )}
-
-        {builds.length > 0 && (
-          <div className="build-tabs">
-            {builds.map((b, i) => (
-              <button
-                key={b.id}
-                className={`build-tab${i === buildIdx ? ' active' : ''}`}
-                onClick={() => setBuildIdx(i)}
-              >
-                {b.name}
-              </button>
-            ))}
-          </div>
-        )}
-
         {showValidation && agreement && (
           <div className="agreement-banner">
             <span>
@@ -108,7 +78,7 @@ export default function App() {
           </div>
         )}
 
-        {activeBuild && <BuildView build={activeBuild} core={showValidation ? core : null} />}
+        {build && <BuildView build={build} core={showValidation ? core : null} />}
       </main>
     </div>
   )
