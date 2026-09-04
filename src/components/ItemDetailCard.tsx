@@ -4,7 +4,7 @@ import type { Item } from '../types'
 // seconds), not a reduction to the hero's own ability cooldowns -- the raw
 // name reads as the latter, so relabel it to avoid that confusion.
 const STAT_NAME_OVERRIDES: Record<string, string> = {
-  AbilityCooldown: 'Item Cooldown',
+  AbilityCooldown: 'Cooldown',
 }
 
 function humanizeStatName(name: string): { label: string; isPercent: boolean } {
@@ -20,12 +20,35 @@ function humanizeStatName(name: string): { label: string; isPercent: boolean } {
   return { label: label || stripped, isPercent }
 }
 
+interface DisplayStat {
+  name: string
+  label: string
+  value: string
+  suffix: string
+  showSign: boolean
+}
+
+// "AbilityCooldown" bonuses in upgrades.property_upgrades are an internal
+// scaling delta, not the number shown in-game -- the item's actual cooldown
+// in seconds lives in item.properties.AbilityCooldown.value instead.
+function resolveStats(item: Item): DisplayStat[] {
+  const raw = item.upgrades?.flatMap((u) => u.property_upgrades ?? []) ?? []
+  return raw.map((p) => {
+    const { label, isPercent } = humanizeStatName(p.name)
+    if (p.name === 'AbilityCooldown') {
+      const base = item.properties?.AbilityCooldown?.value
+      return { name: p.name, label, value: base ?? p.bonus, suffix: 's', showSign: false }
+    }
+    return { name: p.name, label, value: p.bonus, suffix: isPercent ? '%' : '', showSign: true }
+  })
+}
+
 function humanizeLabel(s: string): string {
   return s.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 export default function ItemDetailCard({ item, onClose }: { item: Item; onClose: () => void }) {
-  const props = item.upgrades?.flatMap((u) => u.property_upgrades ?? []) ?? []
+  const stats = resolveStats(item)
   const sections = item.tooltip_sections ?? []
 
   return (
@@ -70,22 +93,20 @@ export default function ItemDetailCard({ item, onClose }: { item: Item; onClose:
           )
         })}
 
-        {props.length > 0 && (
+        {stats.length > 0 && (
           <div>
             <div className="detail-section-title">
               <span>Stats</span>
             </div>
-            {props.map((p, i) => {
-              const { label, isPercent } = humanizeStatName(p.name)
-              const num = Number(p.bonus)
-              const sign = num >= 0 ? '+' : ''
+            {stats.map((s, i) => {
+              const sign = s.showSign && Number(s.value) >= 0 ? '+' : ''
               return (
                 <div className="stat-line" key={i}>
-                  <span>{label}</span>
+                  <span>{s.label}</span>
                   <span>
                     {sign}
-                    {p.bonus}
-                    {isPercent ? '%' : ''}
+                    {s.value}
+                    {s.suffix}
                   </span>
                 </div>
               )

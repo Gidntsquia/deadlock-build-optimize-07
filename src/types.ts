@@ -11,6 +11,7 @@ export interface Item {
   activation?: string
   shopable?: boolean
   upgrades?: { property_upgrades?: { name: string; bonus: string }[] }[]
+  properties?: Record<string, { value?: string }>
   tooltip_sections?: {
     section_type: string
     section_attributes: { loc_string?: string; properties?: string[] }[]
