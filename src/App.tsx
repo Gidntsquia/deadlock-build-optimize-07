@@ -33,6 +33,8 @@ export default function App() {
     return generateBuild(snap, heroId)
   }, [snap, heroId])
 
+  const hero = useMemo(() => snap?.heroes.find((h) => h.id === heroId) ?? null, [snap, heroId])
+
   const heldOutPlayer = HELD_OUT_PLAYERS[heroId]
 
   useEffect(() => {
@@ -90,6 +92,7 @@ export default function App() {
         {build && (
           <BuildView
             build={build}
+            hero={hero}
             core={heldOutPlayer ? core : null}
             corePlayerLabel={heldOutPlayer?.name}
           />

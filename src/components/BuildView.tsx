@@ -1,7 +1,21 @@
 import { useState } from 'react'
-import type { AbilityStep, Build } from '../types'
+import type { AbilityStep, Build, Hero } from '../types'
 import type { ZergCoreSet } from '../lib/validation'
 import ItemDetailCard from './ItemDetailCard'
+
+const SIGNATURE_KEYS = ['signature1', 'signature2', 'signature3', 'signature4']
+
+// In-game ability panel always lists a hero's four abilities in their fixed
+// slot order (Weak, Weapon, Signature, Ultimate), not purchase order.
+function heroSlotOrder(hero: Hero | null): Map<string, number> {
+  const order = new Map<string, number>()
+  if (!hero?.items) return order
+  SIGNATURE_KEYS.forEach((key, i) => {
+    const className = hero.items![key]
+    if (className) order.set(className, i)
+  })
+  return order
+}
 
 const PHASES: Array<Build['items'][number]['phase']> = ['early', 'mid', 'late']
 const PHASE_LABEL: Record<Build['items'][number]['phase'], string> = {
@@ -16,7 +30,7 @@ interface AbilityLane {
   picks: AbilityStep[]
 }
 
-function buildLanes(steps: AbilityStep[]): AbilityLane[] {
+function buildLanes(steps: AbilityStep[], hero: Hero | null): AbilityLane[] {
   const lanes: AbilityLane[] = []
   const byId = new Map<number, AbilityLane>()
   for (const step of steps) {
@@ -28,21 +42,28 @@ function buildLanes(steps: AbilityStep[]): AbilityLane[] {
     }
     lane.picks.push(step)
   }
+  const slotOrder = heroSlotOrder(hero)
+  lanes.sort(
+    (a, b) =>
+      (slotOrder.get(a.ability.class_name) ?? 99) - (slotOrder.get(b.ability.class_name) ?? 99),
+  )
   return lanes
 }
 
 export default function BuildView({
   build,
+  hero,
   core,
   corePlayerLabel,
 }: {
   build: Build
+  hero: Hero | null
   core: ZergCoreSet | null
   corePlayerLabel?: string
 }) {
   const [openItemId, setOpenItemId] = useState<number | null>(null)
   const openItem = build.items.find((bi) => bi.item.id === openItemId)?.item
-  const lanes = buildLanes(build.abilityOrder)
+  const lanes = buildLanes(build.abilityOrder, hero)
   const maxSlot = Math.max(1, ...build.abilityOrder.map((s) => s.slot))
 
   return (
