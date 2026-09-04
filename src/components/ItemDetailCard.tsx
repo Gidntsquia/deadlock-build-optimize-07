@@ -1,8 +1,18 @@
 import type { Item } from '../types'
 
+// "AbilityCooldown" is this item's own active/passive proc cooldown (in
+// seconds), not a reduction to the hero's own ability cooldowns -- the raw
+// name reads as the latter, so relabel it to avoid that confusion.
+const STAT_NAME_OVERRIDES: Record<string, string> = {
+  AbilityCooldown: 'Item Cooldown',
+}
+
 function humanizeStatName(name: string): { label: string; isPercent: boolean } {
   const isPercent = /Percent(age)?$|Pct$/.test(name)
   const stripped = name.replace(/Percent(age)?$|Pct$/, '')
+  if (STAT_NAME_OVERRIDES[stripped]) {
+    return { label: STAT_NAME_OVERRIDES[stripped], isPercent }
+  }
   const label = stripped
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
