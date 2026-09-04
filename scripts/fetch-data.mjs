@@ -64,7 +64,12 @@ async function main() {
     [...arr].sort((a, b) => b.matches - a.matches).slice(0, n)
 
   for (const h of activeHeroes) {
-    itemStats[h.id] = await getJSON(`${API}/v1/analytics/item-stats?hero_id=${h.id}`)
+    // min_average_badge filters to high-rank (~Ascendant+) matches only, since
+    // scoring should reflect what skilled players buy, not the full matchmaking
+    // pool where many builds are suboptimal.
+    itemStats[h.id] = await getJSON(
+      `${API}/v1/analytics/item-stats?hero_id=${h.id}&min_average_badge=80`,
+    )
     await sleep(150)
     const abilityOrder = await getJSON(
       `${API}/v1/analytics/ability-order-stats?hero_id=${h.id}`,

@@ -40,7 +40,6 @@ function wilsonLowerBound(wins, total) {
 
 const WEAPON_KEYWORDS = ['Damage', 'FireRate', 'ClipSize', 'BulletVelocity', 'BulletResist', 'BulletShield', 'ReloadSpeed', 'BulletLifesteal']
 const SPIRIT_KEYWORDS = ['TechPower', 'SpiritPower', 'AbilityCooldown', 'AbilityDuration', 'TechRange', 'SpiritLifesteal', 'SpiritShield']
-const VITALITY_KEYWORDS = ['MaxHealth', 'HealthRegen', 'Stamina', 'MoveSpeed', 'BulletResist']
 
 function propertyKeys(item) {
   const keys = []
@@ -67,17 +66,15 @@ function scoreItems(heroId, weights) {
     const winScore = wilsonLowerBound(stat.wins, stat.wins + stat.losses)
     const popularity = Math.log(1 + stat.matches) / Math.log(1 + maxMatches)
     const keywordBonus = Math.max(keywordAffinity(item, WEAPON_KEYWORDS), keywordAffinity(item, SPIRIT_KEYWORDS))
-    const vitalityBonus = keywordAffinity(item, VITALITY_KEYWORDS) * 0.3
 
-    const score =
-      winScore * weights.win + popularity * weights.pop + keywordBonus * weights.keyword + vitalityBonus * weights.vitality
+    const score = winScore * weights.win + popularity * weights.pop + keywordBonus * weights.keyword
 
     out.push({ item, stat, score, buyTimeRelative: stat.avg_buy_time_relative ?? 50 })
   }
   return out.sort((a, b) => b.score - a.score)
 }
 
-const DEFAULT_TIER_BUDGET = { 1: 8, 2: 8, 3: 7, 4: 5 }
+const DEFAULT_TIER_BUDGET = { 1: 9, 2: 8, 3: 8, 4: 6 }
 function selectBuild(scored, tierBudget) {
   const byTier = new Map()
   for (const s of scored) {
@@ -158,7 +155,7 @@ export function evaluate(heroId, weights, tierBudget = DEFAULT_TIER_BUDGET) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const weights = { win: 0.4, pop: 0.4, keyword: 0.15, vitality: 0.1 }
+  const weights = { win: 0.4, pop: 0.5, keyword: 0.1 }
   console.log('weights:', weights)
   for (const [heroId, player] of Object.entries(HELD_OUT_PLAYERS)) {
     const r = evaluate(Number(heroId), weights)

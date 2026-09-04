@@ -47,8 +47,6 @@ const SPIRIT_KEYWORDS = [
   'SpiritLifesteal',
   'SpiritShield',
 ]
-const VITALITY_KEYWORDS = ['MaxHealth', 'HealthRegen', 'Stamina', 'MoveSpeed', 'BulletResist']
-
 function propertyKeys(item: Item): string[] {
   const keys: string[] = []
   for (const up of item.upgrades ?? []) {
@@ -90,12 +88,13 @@ function scoreItems(items: Item[], stats: ItemStat[]): ScoredItem[] {
       keywordAffinity(item, WEAPON_KEYWORDS),
       keywordAffinity(item, SPIRIT_KEYWORDS),
     )
-    const vitalityBonus = keywordAffinity(item, VITALITY_KEYWORDS) * 0.3
 
-    // Weighting: win confidence and popularity are co-dominant (top players
-    // converge on items that are both winning and commonly built), and
-    // stat-line synergy plus a vitality credit round it out.
-    const score = winScore * 0.4 + popularity * 0.4 + keywordBonus * 0.15 + vitalityBonus * 0.1
+    // Weighting: item-stats is now sourced from high-rank matches only (see
+    // scripts/refetch-item-stats.mjs), so popularity there already reflects
+    // skilled-player consensus more than raw win-rate noise does — weighted
+    // accordingly and tuned by grid search against held-out top-player data
+    // (scripts/eval-agreement.mjs).
+    const score = winScore * 0.4 + popularity * 0.5 + keywordBonus * 0.1
 
     out.push({ item, stat, score, buyTimeRelative: stat.avg_buy_time_relative ?? 50 })
   }
@@ -105,7 +104,7 @@ function scoreItems(items: Item[], stats: ItemStat[]): ScoredItem[] {
 // Real matches buy far more items than a minimal build (top players average
 // ~23 purchases across a game, including replacements), so a tighter budget
 // under-fills the build relative to how the game is actually played.
-const TIER_BUDGET: Record<number, number> = { 1: 8, 2: 8, 3: 7, 4: 5 }
+const TIER_BUDGET: Record<number, number> = { 1: 9, 2: 8, 3: 8, 4: 6 }
 
 function selectBuild(scored: ScoredItem[]): ScoredItem[] {
   const byTier = new Map<number, ScoredItem[]>()
