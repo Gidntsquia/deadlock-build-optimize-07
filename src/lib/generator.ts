@@ -108,18 +108,23 @@ function scoreItemsForArchetype(
         : keywordAffinity(item, SPIRIT_KEYWORDS)
     const vitalityBonus = keywordAffinity(item, VITALITY_KEYWORDS) * 0.3
 
-    // Weighting: win confidence dominates, then popularity as a corroborating
-    // signal, then archetype slot fit, then a smaller bonus for stat-line
-    // synergy with the archetype (and a little vitality credit for survivability).
+    // Weighting: win confidence and popularity are co-dominant (top players
+    // converge on items that are both winning and commonly built), slot fit
+    // is a light nudge rather than a hard filter (real builds mix slots more
+    // than a strict weapon/spirit split), and stat-line synergy plus a
+    // vitality credit round it out.
     const score =
-      winScore * 0.45 + popularity * 0.2 + slotBonus * 0.2 + keywordBonus * 0.1 + vitalityBonus * 0.05
+      winScore * 0.35 + popularity * 0.35 + slotBonus * 0.05 + keywordBonus * 0.15 + vitalityBonus * 0.1
 
     out.push({ item, stat, score, buyTimeRelative: stat.avg_buy_time_relative ?? 50 })
   }
   return out.sort((a, b) => b.score - a.score)
 }
 
-const TIER_BUDGET: Record<number, number> = { 1: 4, 2: 4, 3: 3, 4: 2 }
+// Real matches buy far more items than a minimal build (top players average
+// ~23 purchases across a game, including replacements), so a tighter budget
+// under-fills the build relative to how the game is actually played.
+const TIER_BUDGET: Record<number, number> = { 1: 8, 2: 8, 3: 7, 4: 5 }
 
 function selectBuild(scored: ScoredItem[]): ScoredItem[] {
   const byTier = new Map<number, ScoredItem[]>()
