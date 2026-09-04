@@ -1,11 +1,18 @@
-// Held-out validation. This is the ONLY module allowed to read
-// zergggy-infernus-matches.json. Its output is a report on how well the
-// generator (which never sees this file) matches a real top player's habits —
-// never a source the generator consumes.
+// Held-out validation. This is the ONLY module allowed to read the
+// top-player match snapshot files below. Its output is a report on how well
+// the generator (which never sees these files) matches a real top player's
+// habits — never a source the generator consumes.
 import type { Build, ZergMatch } from '../types'
 
 const CORE_THRESHOLD = 0.3
 const base = (import.meta.env?.BASE_URL ?? '/') + 'data/'
+
+// One held-out top-player match snapshot per hero we can validate against.
+export const HELD_OUT_PLAYERS: Record<number, { name: string; file: string }> = {
+  1: { name: 'Zergggy', file: 'zergggy-infernus-matches.json' },
+  31: { name: 'Deathy', file: 'deathy-lash-matches.json' },
+  63: { name: 'Zergggy', file: 'zergggy-mina-matches.json' },
+}
 
 export interface CoreItemEntry {
   itemId: number
@@ -18,16 +25,20 @@ export interface ZergCoreSet {
   entries: Map<number, CoreItemEntry>
 }
 
-let cached: ZergMatch[] | null = null
-async function loadZergMatches(): Promise<ZergMatch[]> {
+const matchCache = new Map<string, ZergMatch[]>()
+async function loadMatches(file: string): Promise<ZergMatch[]> {
+  const cached = matchCache.get(file)
   if (cached) return cached
-  const res = await fetch(base + 'zergggy-infernus-matches.json')
-  cached = (await res.json()) as ZergMatch[]
-  return cached
+  const res = await fetch(base + file)
+  const matches = (await res.json()) as ZergMatch[]
+  matchCache.set(file, matches)
+  return matches
 }
 
-export async function computeZergCoreSet(): Promise<ZergCoreSet> {
-  const matches = await loadZergMatches()
+export async function computeCoreSet(heroId: number): Promise<ZergCoreSet | null> {
+  const player = HELD_OUT_PLAYERS[heroId]
+  if (!player) return null
+  const matches = await loadMatches(player.file)
   const n = matches.length
   const perItemWeight = new Map<number, number>()
 
@@ -82,8 +93,8 @@ function orderAgreement(build: Build, zergOrderByItem: Map<number, number>): num
   return total === 0 ? 0 : (concordant / total) * 100
 }
 
-async function averageZergBuyOrder(): Promise<Map<number, number>> {
-  const matches = await loadZergMatches()
+async function averageBuyOrder(file: string): Promise<Map<number, number>> {
+  const matches = await loadMatches(file)
   const rankSums = new Map<number, { sum: number; count: number }>()
   for (const m of matches) {
     const sorted = [...m.items].sort((a, b) => a.game_time_s - b.game_time_s)
@@ -99,14 +110,15 @@ async function averageZergBuyOrder(): Promise<Map<number, number>> {
   return out
 }
 
-export async function validateBuild(build: Build, core: ZergCoreSet): Promise<BuildAgreement> {
+export async function validateBuild(build: Build, heroId: number, core: ZergCoreSet): Promise<BuildAgreement> {
+  const player = HELD_OUT_PLAYERS[heroId]
   const coreIds = [...core.entries.values()].filter((e) => e.isCore).map((e) => e.itemId)
   const buildIds = new Set(build.items.map((bi) => bi.item.id))
   const overlapCount = coreIds.filter((id) => buildIds.has(id)).length
   const overlapPct = coreIds.length === 0 ? 0 : (overlapCount / coreIds.length) * 100
 
-  const zergOrder = await averageZergBuyOrder()
-  const orderPct = orderAgreement(build, zergOrder)
+  const order = player ? await averageBuyOrder(player.file) : new Map<number, number>()
+  const orderPct = orderAgreement(build, order)
 
   const overallAgreementPct = overlapPct * 0.6 + orderPct * 0.4
 

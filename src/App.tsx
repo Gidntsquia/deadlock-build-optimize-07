@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { activeHeroes, loadSnapshots, type Snapshots } from './lib/data'
 import { generateBuild } from './lib/generator'
-import { computeZergCoreSet, validateBuild, type BuildAgreement, type ZergCoreSet } from './lib/validation'
+import {
+  computeCoreSet,
+  validateBuild,
+  HELD_OUT_PLAYERS,
+  type BuildAgreement,
+  type ZergCoreSet,
+} from './lib/validation'
 import HeroPicker from './components/HeroPicker'
 import BuildView from './components/BuildView'
 
@@ -18,9 +24,6 @@ export default function App() {
     loadSnapshots()
       .then(setSnap)
       .catch((e) => setError(String(e)))
-    computeZergCoreSet()
-      .then(setCore)
-      .catch(() => {})
   }, [])
 
   const heroes = useMemo(() => (snap ? activeHeroes(snap.heroes) : []), [snap])
@@ -30,19 +33,26 @@ export default function App() {
     return generateBuild(snap, heroId)
   }, [snap, heroId])
 
+  const heldOutPlayer = HELD_OUT_PLAYERS[heroId]
+
   useEffect(() => {
-    if (heroId !== INFERNUS_ID || !core || !build) {
+    if (!heldOutPlayer || !build) {
+      setCore(null)
       setAgreement(null)
       return
     }
     let cancelled = false
-    validateBuild(build, core).then((result) => {
-      if (!cancelled) setAgreement(result)
+    computeCoreSet(heroId).then((c) => {
+      if (cancelled || !c) return
+      setCore(c)
+      validateBuild(build, heroId, c).then((result) => {
+        if (!cancelled) setAgreement(result)
+      })
     })
     return () => {
       cancelled = true
     }
-  }, [build, core, heroId])
+  }, [build, heroId, heldOutPlayer])
 
   if (error) {
     return (
@@ -60,8 +70,6 @@ export default function App() {
     )
   }
 
-  const showValidation = heroId === INFERNUS_ID
-
   return (
     <div className="app">
       <div className="header">
@@ -69,16 +77,23 @@ export default function App() {
         <HeroPicker heroes={heroes} selected={heroId} onSelect={setHeroId} />
       </div>
       <main>
-        {showValidation && agreement && (
+        {heldOutPlayer && agreement && (
           <div className="agreement-banner">
             <span>
-              Agreement with Zergggy's real Infernus builds ({core?.matchesSampled ?? 0} matches sampled)
+              Agreement with {heldOutPlayer.name}'s real builds ({core?.matchesSampled ?? 0} matches
+              sampled)
             </span>
             <span className="agreement-value">{agreement.overallAgreementPct.toFixed(0)}%</span>
           </div>
         )}
 
-        {build && <BuildView build={build} core={showValidation ? core : null} />}
+        {build && (
+          <BuildView
+            build={build}
+            core={heldOutPlayer ? core : null}
+            corePlayerLabel={heldOutPlayer?.name}
+          />
+        )}
       </main>
     </div>
   )

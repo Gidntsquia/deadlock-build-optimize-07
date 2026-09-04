@@ -31,7 +31,15 @@ function buildLanes(steps: AbilityStep[]): AbilityLane[] {
   return lanes
 }
 
-export default function BuildView({ build, core }: { build: Build; core: ZergCoreSet | null }) {
+export default function BuildView({
+  build,
+  core,
+  corePlayerLabel,
+}: {
+  build: Build
+  core: ZergCoreSet | null
+  corePlayerLabel?: string
+}) {
   const [openItemId, setOpenItemId] = useState<number | null>(null)
   const openItem = build.items.find((bi) => bi.item.id === openItemId)?.item
   const lanes = buildLanes(build.abilityOrder)
@@ -74,7 +82,12 @@ export default function BuildView({ build, core }: { build: Build; core: ZergCor
                               {TIER_NUMERAL[bi.item.item_tier]}
                             </span>
                           )}
-                          {isCore && <span className="core-pip" title="Confirmed in Zergggy's matches" />}
+                          {isCore && (
+                            <span
+                              className="core-pip"
+                              title={`Confirmed in ${corePlayerLabel ?? "the top player's"} matches`}
+                            />
+                          )}
                         </div>
                         <div className="item-tile-name">{bi.item.name}</div>
                         <div className="item-tile-cost">
